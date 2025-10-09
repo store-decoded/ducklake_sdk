@@ -1,0 +1,50 @@
+SRC:
+  stream:
+    host: read.from.kafka.host
+    port: 9092
+    ingest_topics: 
+      - sample_topic
+    ingest_table: kafka_content
+    group_id: ducklake_consumers
+    batch_size: 10000
+
+  storage:
+    host: read.from.s3fs.host
+    port: 9000
+    scope: big_parquets_bucket
+    secure: false
+    region: us-east-1
+    style: path
+    access_key: minio
+    secret: password
+
+  postgres:
+    host: read.from.pg.host
+    port: 5432
+    database: postgres
+    username: pgadmin
+    password: password
+    lake_alias: lake
+
+DEST:
+  catalog:
+    host: 127.0.0.1
+    port: 5432
+    database: postgres
+    username: pgadmin
+    password: password
+    lake_alias: lake
+
+  storage:
+    host: 127.0.0.1
+    port: 9000
+    scope: destination
+    secure: false
+    region: us-east-1
+    style: path
+    access_key: minio
+    secret: password
+
+
+
+
