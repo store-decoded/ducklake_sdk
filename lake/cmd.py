@@ -2,6 +2,9 @@ import argparse
 import os
 from lake.connector import load_connector
 from lake.render import serve
+from lake.connector.core import DuckLakeManager
+from lake.util.logger import logger
+
 
 def main():
     """
@@ -54,8 +57,13 @@ def main():
         cnn.attach()
     if args.command == 'serve':
         serve()
+        
+
+
 
 
 
 if __name__ == "__main__":
     main()
+
+

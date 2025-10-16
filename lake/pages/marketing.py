@@ -22,7 +22,7 @@ class Connector(DuckLakeManager):
         # print(result.df())
 
         # connect to your storage src (no need to call use {alias} command since ducklake automatically detects from scope)
-        read_from_src_storage = f"select count(request_id) as num_requests,remote_ip as address from read_parquet('s3://{self.SRC.storage.scope}/logs_2024-09-20T00-20.parquet') \
+        read_from_src_storage = f"select count(request_id) as num_requests,remote_ip as address from read_parquet('s3://flowtrack/logs_2024-09-20T00-20.parquet') \
             group by remote_ip;"
         result = self.duckdb_connection.execute(read_from_src_storage)
         # print(result.df())

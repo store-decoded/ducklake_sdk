@@ -5,11 +5,13 @@ import psycopg2
 from typing import List, Optional
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from botocore.exceptions import ClientError, ConnectTimeoutError
-from lake.util.conf_loader import Configs
+from lake.util.conf_loader import Configs,StorageCnn,PgCnn
 import time
 from lake.util.logger import logger
 from duckdb import CatalogException
 from typing import Literal, cast,Union
+from duckdb import IOException
+
 class DuckLakeManager(Configs):
     pg_catalog:str = None
     s3_source_create_command: str = None
@@ -20,27 +22,32 @@ class DuckLakeManager(Configs):
         self.duckdb_connection = duckdb.connect()
         try:
             self._attach()
-            result = self.duckdb_connection.execute("SHOW TABLES").fetchall()
+            result = self.duckdb_connection.execute("""
+                SELECT tablename
+                FROM pg_catalog.pg_tables
+                WHERE schemaname = 'postgres';
+                """).fetchall()
             if len(result) == 0:
                raise CatalogException
-            logger.info(f"attached existing ducklake {self.DEST.catalog.lake_alias} with {len(result)} tables")
+            logger.info(f"attached existing ducklake {self.Lake.DEST.catalog.lake_alias} with {len(result)} tables")
         except CatalogException:
-            logger.warning(f"catalog Not found! (Creating {self.DEST.catalog.lake_alias}...)")
+            logger.warning(f"catalog Not found! (Creating {self.Lake.DEST.catalog.lake_alias}...)")
             self._connectivity_assessment()
             installation_status = self.__install_duckdb_extensions()
             if installation_status is not None:
                 sys.exit(1)
-    
+
+
     def _get_dest_storage_secret(self):
         try:
             return (
-                f"create secret {self.DEST.storage.lake_alias} (type s3, "
-                + f"key_id '{self.DEST.storage.access_key.get_secret_value()}', "
-                + f"secret '{self.DEST.storage.secret.get_secret_value()}', "
-                + f"endpoint '{self.DEST.storage.host}:{self.DEST.storage.port}', "
-                + f"scope 's3://{self.DEST.storage.scope}',"
-                + f"use_ssl {self.DEST.storage.secure}, "
-                + f"url_style '{self.DEST.storage.style}'"
+                f"create secret {self.Lake.DEST.storage.lake_alias} (type s3, "
+                + f"key_id '{self.Lake.DEST.storage.access_key.get_secret_value()}', "
+                + f"secret '{self.Lake.DEST.storage.secret.get_secret_value()}', "
+                + f"endpoint '{self.Lake.DEST.storage.host}:{self.Lake.DEST.storage.port}', "
+                + f"scope 's3://{self.Lake.DEST.storage.scope}',"
+                + f"use_ssl {self.Lake.DEST.storage.secure}, "
+                + f"url_style '{self.Lake.DEST.storage.style}'"
                 ");"
             )
         except Exception as fail:
@@ -50,72 +57,98 @@ class DuckLakeManager(Configs):
         try:
             return (
                 "postgres:"
-                + f"dbname={self.DEST.catalog.database} "
-                + f"host={self.DEST.catalog.host} "
-                + f"port={self.DEST.catalog.port} "
-                + f"user={self.DEST.catalog.username.get_secret_value()} "
-                + f"password={self.DEST.catalog.password.get_secret_value()} "
+                + f"dbname={self.Lake.DEST.catalog.database} "
+                + f"host={self.Lake.DEST.catalog.host} "
+                + f"port={self.Lake.DEST.catalog.port} "
+                + f"user={self.Lake.DEST.catalog.username.get_secret_value()} "
+                + f"password={self.Lake.DEST.catalog.password.get_secret_value()} "
             )
         except Exception as fail:
             logger.critical(f"cannot register catalog definition {fail}")
             return ''
-    def _get_src_pg_secret(self):
+    def _get_chsql_extra_definition(self):
         try:
             return (
-                f"create secret {self.SRC.postgres.lake_alias}_secret (type postgres, "
-                + f"host '{self.SRC.postgres.host}', "
-                + f"port {self.SRC.postgres.port}  , "
-                + f"database '{self.SRC.postgres.database}', "
-                + f"user '{self.SRC.postgres.username.get_secret_value()}',"
-                + f"password '{self.SRC.postgres.password.get_secret_value()}' "
+                f"CREATE SECRET extra_http_headers (type HTTP, "
+                + "EXTRA_HTTP_HEADERS MAP{"
+                +   f"'X-ClickHouse-User': 'data.bimebazar.com',"
+                +   f"'X-ClickHouse-Key': '5up3r53CUR3D'"
+                + "});"
+            )
+        except Exception as fail:
+            logger.critical(f"cannot register catalog definition {fail}")
+            return ''
+    @staticmethod
+    def _get_src_pg_secret(lake_alias:str,pg_cfg:PgCnn):
+        try:
+            return (
+                f"create secret {lake_alias}_secret (type postgres, "
+                + f"host '{pg_cfg.host}', "
+                + f"port {pg_cfg.port}  , "
+                + f"database '{pg_cfg.database}', "
+                + f"user '{pg_cfg.username.get_secret_value()}',"
+                + f"password '{pg_cfg.password.get_secret_value()}' "
                 + ");"
             )
         except Exception as fail:
-            logger.critical(f"cannot register {self.SRC.postgres.lake_alias} {fail}")
+            logger.critical(f"cannot register {lake_alias} {fail}")
             return 'select 1;'
-    def _get_src_s3_secret(self):
+    @staticmethod
+    def _get_src_s3_secret(lake_alias:str,storage_cfg:StorageCnn):
         try:
             return (
-                f"create secret {self.SRC.storage.lake_alias} (type s3, "
-                + f"key_id '{self.SRC.storage.access_key.get_secret_value()}', "
-                + f"secret '{self.SRC.storage.secret.get_secret_value()}', "
-                + f"endpoint '{self.SRC.storage.host}:{self.SRC.storage.port}', "
-                + f"scope 's3://{self.SRC.storage.scope}',"
-                + f"use_ssl {self.SRC.storage.secure}, "
-                + f"url_style '{self.SRC.storage.style}'"
+                f"create secret {lake_alias} (type s3, "
+                + f"key_id '{storage_cfg.access_key.get_secret_value()}', "
+                + f"secret '{storage_cfg.secret.get_secret_value()}', "
+                + f"endpoint '{storage_cfg.host}:{storage_cfg.port}', "
+                + f"scope 's3://{storage_cfg.scope}',"
+                + f"use_ssl {storage_cfg.secure}, "
+                + f"url_style '{storage_cfg.style}'"
                 ");"
             )
         except Exception as fail:
-            logger.critical(f"cannot register {self.SRC.storage.lake_alias} {fail}")
+            logger.critical(f"cannot register {lake_alias} {fail}")
             return 'select 1;'
 
     def _attach(self):
+        try:
+            self.duckdb_connection.execute(self._get_dest_storage_secret())
+        except Exception as fail:
+            logger.error(f'ducklake (DataPath) storage has not been registered ! {fail}')
         
-        self.duckdb_connection.execute(self._get_dest_storage_secret())
-        
-        
-        if self.SRC.storage:
-            logger.info(f"registering s3 source {self.SRC.storage.lake_alias}")
-            self.duckdb_connection.execute(self._get_src_s3_secret())
-        if self.SRC.postgres:
-            logger.info(f"registering postgres source {self.SRC.postgres.lake_alias}")
-            self.duckdb_connection.execute(self._get_src_pg_secret())
-            attach_src_pg_command = f"ATTACH 'dbname={self.SRC.postgres.database}' AS {self.SRC.postgres.lake_alias} (TYPE postgres, SECRET {self.SRC.postgres.lake_alias}_secret);"
-            self.duckdb_connection.execute(attach_src_pg_command)
-        logger.info(f"registering core 'DATA LAKE' as {self.DEST.catalog.lake_alias}")
-        attach_lake_command = f"ATTACH 'ducklake:{self._get_dest_catalog_definition()}' AS {self.DEST.catalog.lake_alias} (DATA_PATH 's3://{self.DEST.storage.scope}');"
-        self.duckdb_connection.execute(attach_lake_command)
-        
+        if self.Lake.SRC.storage:
+            logger.info(f"registering s3 sources {list(self.Lake.SRC.storage.keys())}")
+            for lake_alias,storage_cfg in self.Lake.SRC.storage.items():
+                logger.info(f"register minio instance {lake_alias} on scope {storage_cfg.scope}")
+                try:
+                    self.duckdb_connection.execute(self._get_src_s3_secret(lake_alias,storage_cfg))
+                except Exception as fail:
+                    logger.error(f"Failed to register new s3 instance {lake_alias} on scope {storage_cfg.scope} ")
+        if self.Lake.SRC.postgres:
+            logger.info(f"registering postgres source {list(self.Lake.SRC.postgres.keys())}")
+            for lake_alias,pg_cfg in self.Lake.SRC.postgres.items():
+                self.duckdb_connection.execute(self._get_src_pg_secret(lake_alias,pg_cfg))
+                attach_src_pg_command = f"ATTACH 'dbname={pg_cfg.database}' AS {lake_alias} (TYPE postgres, SECRET {lake_alias}_secret);"
+                self.duckdb_connection.execute(attach_src_pg_command)
+        logger.info(f"registering core 'DATA LAKE' as {self.Lake.DEST.catalog.lake_alias}")
+        attach_lake_command = f"ATTACH 'ducklake:{self._get_dest_catalog_definition()}' AS {self.Lake.DEST.catalog.lake_alias} (DATA_PATH 's3://{self.Lake.DEST.storage.scope}');"
+        try:
+            register_lake = self.duckdb_connection.execute(attach_lake_command).fetchall()
+            logger.info(register_lake)
+        except IOException:
+            logger.error(f'error registering core data lake! (installing extenstions)')
+            raise CatalogException
+             
 
 
     def _connectivity_assessment(self):
-        s3_object = self.DEST.storage
-        pg_object = self.DEST.catalog
+        s3_object = self.Lake.DEST.storage
+        pg_object = self.Lake.DEST.catalog
         try:
             logger.info(f"checking connectivity for source s3")
             s3_client = boto3.client(
                 "s3",
-                endpoint_url=s3_object.get_address,
+                endpoint_url=s3_object.http_url,
                 aws_access_key_id=s3_object.access_key.get_secret_value(),
                 aws_secret_access_key=s3_object.secret.get_secret_value()
             )
@@ -175,9 +208,11 @@ class DuckLakeManager(Configs):
     def __install_duckdb_extensions(
         self, extensions: List = ["ducklake", "postgres", "httpfs","excel"]
     ) -> Optional[Exception]:
+
         for extension_name in extensions:
             try:
                 self.duckdb_connection.sql(f"INSTALL {extension_name};")
+                
                 self.duckdb_connection.sql(f"LOAD {extension_name};")
                 logger.info(f"{extension_name} installed and loaded successfully.")
             except duckdb.HTTPException as e:
