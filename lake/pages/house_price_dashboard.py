@@ -22,15 +22,14 @@ class Connector(DuckLakeManager):
         # print(result.df())
 
         # connect to your storage src (no need to call use {alias} command since ducklake automatically detects from scope)
-        read_from_src_storage = f"select count(request_id) as num_requests,remote_ip as address from read_parquet('s3://flowtrack/logs_2024-09-20T00-20.parquet') \
-            group by remote_ip;"
+        read_from_src_storage = f"select Suburb,avg(Median_House_Price_AUD) as Median_House_Price_AUD  from read_parquet('s3://data-source/suburb_data.parquet') GROUP BY Suburb LIMIT 50;"
         result = self.duckdb_connection.execute(read_from_src_storage)
         df = result.df()
-
-        df.plot(kind = 'bar', x = 'address', y = 'num_requests')
+        df.sort_values('Median_House_Price_AUD',inplace=True)
+        df.plot(kind = 'bar', x = 'Suburb', y = 'Median_House_Price_AUD')
         plt.title(__file__.split('/')[-1])
-        plt.xlabel("ip_address")
-        plt.ylabel("requests")
+        plt.xlabel("Suburb")
+        plt.ylabel("Prices")
         plt.grid()
 
         return plt.gcf()
