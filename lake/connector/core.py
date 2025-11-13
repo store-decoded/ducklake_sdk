@@ -27,14 +27,15 @@ class DuckLakeManager(Configs):
                 FROM pg_catalog.pg_tables
                 WHERE schemaname = 'public';
                 """).fetchall()
-            print("Available DataSrc:",[x[0] for x in result if not x[0].startswith('ducklake')])
+            logger.info(f"Available DataSrc: {[x[0] for x in result if not x[0].startswith('ducklake')]}")
             if len(result) == 0:
                raise CatalogException
             logger.info(f"attached existing ducklake {self.Lake.DEST.catalog.lake_alias} with {len(result)} tables")
         except CatalogException:
             logger.warning(f"catalog Not found! (Creating {self.Lake.DEST.catalog.lake_alias}...)")
             self._connectivity_assessment()
-            installation_status = self.__install_duckdb_extensions()
+            required_extentions = list(self.Lake.SRC.model_dump().keys())
+            installation_status = self.__install_duckdb_extensions(extensions=required_extentions)
             if installation_status is not None:
                 sys.exit(1)
 
@@ -56,6 +57,7 @@ class DuckLakeManager(Configs):
             return './resources/asset/tmp.db'
     def _get_dest_catalog_definition(self):
         try:
+            p = 1/0
             return (
                 "postgres:"
                 + f"dbname={self.Lake.DEST.catalog.database} "
@@ -66,13 +68,13 @@ class DuckLakeManager(Configs):
             )
         except Exception as fail:
             logger.critical(f"cannot register catalog definition {fail}")
-            return ''
+            return 'resources/local_lake/tmp.ducklake'
     def _get_chsql_extra_definition(self):
         try:
             return (
                 f"CREATE SECRET extra_http_headers (type HTTP, "
                 + "EXTRA_HTTP_HEADERS MAP{"
-                +   f"'X-ClickHouse-User': 'data.bimebazar.com',"
+                +   f"'X-ClickHouse-User': '127.0.0.1',"
                 +   f"'X-ClickHouse-Key': '5up3r53CUR3D'"
                 + "});"
             )
@@ -129,16 +131,15 @@ class DuckLakeManager(Configs):
             logger.info(f"registering postgres source {list(self.Lake.SRC.postgres.keys())}")
             for lake_alias,pg_cfg in self.Lake.SRC.postgres.items():
                 self.duckdb_connection.execute(self._get_src_pg_secret(lake_alias,pg_cfg))
-                attach_src_pg_command = f"ATTACH 'dbname={pg_cfg.database}' AS {lake_alias} (TYPE postgres, SECRET {lake_alias}_secret);"
+                attach_src_pg_command = f"ATTACH 'dbname={pg_cfg.database}' AS {lake_alias} (TYPE postgres,SCHEMA '{pg_cfg.schema}',SECRET {lake_alias}_secret);"
                 self.duckdb_connection.execute(attach_src_pg_command)
         logger.info(f"registering core 'DATA LAKE' as {self.Lake.DEST.catalog.lake_alias}")
         attach_lake_command = f"ATTACH 'ducklake:{self._get_dest_catalog_definition()}' AS {self.Lake.DEST.catalog.lake_alias} (DATA_PATH 's3://{self.Lake.DEST.storage.scope}');"
         try:
-            print(attach_lake_command)
             register_lake = self.duckdb_connection.execute(attach_lake_command).fetchall()
             logger.info(register_lake)
-        except IOException:
-            logger.error(f'error registering core data lake! (installing extenstions)')
+        except IOException as exc:
+            logger.error(f'error attaching core data lake! {exc}')
             raise CatalogException
              
 
@@ -181,7 +182,7 @@ class DuckLakeManager(Configs):
                 port=pg_object.port,
                 user=pg_object.username.get_secret_value(),
                 password=pg_object.password.get_secret_value(),
-                dbname='postgres',
+                dbname='postgres', # attach to postgress to get admin priveleges
             )
             pg_conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
             with pg_conn.cursor() as cursor:
@@ -210,11 +211,20 @@ class DuckLakeManager(Configs):
     def __install_duckdb_extensions(
         self, extensions: List = ["ducklake", "postgres", "httpfs","excel"]
     ) -> Optional[Exception]:
+        extensions.append('ducklake')
+        extenstion_names ={
+            "ducklake":"ducklake",
+            "postgres": "postgres",
+            "storage":"httpfs",
+            "excel": "excel",
+            "avro": "avro",
+            "aws":"aws"
+        }
 
-        for extension_name in extensions:
+        for key_name in extensions:
+            extension_name = extenstion_names[key_name]
             try:
                 self.duckdb_connection.sql(f"INSTALL {extension_name};")
-                
                 self.duckdb_connection.sql(f"LOAD {extension_name};")
                 logger.info(f"{extension_name} installed and loaded successfully.")
             except duckdb.HTTPException as e:
@@ -246,7 +256,6 @@ class DuckLakeManager(Configs):
         # Find the deletion snapshot
         deletion_snapshot = None
         previous_snapshot = None
-        # tables_inserted_into
 
         for i, (snap_id, snap_time, changes) in enumerate(snapshots):
             print(snap_id,snap_time,list(changes.keys()))

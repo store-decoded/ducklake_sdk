@@ -1,0 +1,12 @@
+infrastructure/pg_data
+infrastructure/kafka_data
+infrastructure/minio_Data
+infrastructure/pgadmin_Data
+lake/__pycache__
+lake/connector/__pycache__
+lake/util/__pycache__
+lake/pages/__pycache__
+resources/logs
+uv.lock
+.venv
+resources/config.tmp.yml

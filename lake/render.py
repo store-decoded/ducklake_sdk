@@ -6,13 +6,13 @@ from lake.pages import load_page
 # Ensure Panel extensions are loaded; sizing_mode will make things responsive
 pn.extension('ipywidgets', sizing_mode='stretch_both')
 
+
 # Use a polished dark template (Vuetify). Set dark=True for a true dark theme.
 # template = pn.template.DarkTheme()
 
 # Directory containing page modules
 PAGES_DIR = Path('.') / 'lake' / 'pages'
 IGNORE_FILES = {'__pycache__', '__init__.py'}
-
 def discover_modules():
     """Return list of available page module names (without .py)."""
     if not PAGES_DIR.exists():
@@ -26,8 +26,11 @@ def discover_modules():
 def render_dashboard(module_name):
     """Render a dashboard page by name. Expects instance.deploy() -> Matplotlib Figure."""
     try:
-        print(f"LOADING MODULE {module_name}")
-        instance = load_page(module_name, 'resources/config.tmp.yml')
+
+        config_path = os.getenv("LAKE_CONFIG","./resources/config.local.yml")
+        print(f"LOADING MODULE {module_name} {config_path}")
+
+        instance = load_page(module_name, config_path)
         fig = instance.deploy()
         pane = pn.pane.Matplotlib(fig, tight=True, sizing_mode='stretch_both')
         card = pn.Card(pane, title=f"{module_name}", sizing_mode='stretch_both')
@@ -55,7 +58,7 @@ sidebar_select = pn.widgets.Select(
 # Add a small header for branding
 sidebar_header = pn.Column(
     pn.pane.Markdown("## Decoded\n### ducklake-sdk"),
-    pn.pane.Markdown("Build, version, and serve DataLake+BI from code."),
+    pn.pane.Markdown("Free Space to add widgets on demand"),
     sizing_mode='stretch_width'
 )
 
@@ -106,15 +109,18 @@ sidebar_select.param.watch(view_dashboard, 'value')
 
 template = pn.template.MaterialTemplate(
     site="Panel",
-    title="Decoded Demo",
+    title="Decoded Ducklake Demo (DDD)",
     sidebar=[sidebar_card],
-    main=[dashboard_panel],
+    main=[dashboard_panel]
 )
 
 def serve():
     # Expose the template as servable and run the server
     template.servable(title='BI as Code panel')
-    pn.serve(template, title='BI as Code panel', show=False)
+    pn.serve(template, title='BI as Code panel',address='0.0.0.0',port=5480, show=False)
 
 if __name__ == '__main__':
     serve()
+# elif __name__ == "lake.render":
+    
+#     import .render

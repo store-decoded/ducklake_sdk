@@ -198,10 +198,14 @@ logs/
 .data
 
 .dev
-
+.gitkeep
 .production_envs
 resources/config.tmp.yml
 infrastructure/minio_data
 infrastructure/pgadmin_data
 infrastructure/pg_data
 infrastructure/kafka_data
+infrastructure/rabbitmq
+infrastructure/airflow/logs/*
+infrastructure/airflow/dags/*
+sources_sample

@@ -22,7 +22,7 @@ class Connector(DuckLakeManager):
         # print(result.df())
 
         # connect to your storage src (no need to call use {alias} command since ducklake automatically detects from scope)
-        read_from_src_storage = f"select Suburb,avg(Median_House_Price_AUD) as Median_House_Price_AUD  from read_parquet('s3://data-source/suburb_data.parquet') GROUP BY Suburb LIMIT 50;"
+        read_from_src_storage = f"select * from read_parquet('s3://minio_scope/some_data.parquet') GROUP BY Suburb LIMIT 50;"
         result = self.duckdb_connection.execute(read_from_src_storage)
         df = result.df()
         df.sort_values('Median_House_Price_AUD',inplace=True)

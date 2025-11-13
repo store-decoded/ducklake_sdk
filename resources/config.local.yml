@@ -13,7 +13,7 @@ Lake:
     storage:
       sample_minio:
         host: localhost
-        port: 9003
+        port: 9000
         scope: data-source
         secure: false
         region: us-east-1
@@ -22,19 +22,19 @@ Lake:
         secret: password
 
 
-    postgres:
-      sample_pg_1:
-        host: localhost
-        port: 5422
-        database: postgres
-        username: postgres
-        password: password
-      sample_pg_2:
-        host: localhost
-        port: 5423
-        database: postgres
-        username: postgres
-        password: password
+    # postgres:
+    #   sample_pg_1:
+    #     host: localhost
+    #     port: 5422
+    #     database: postgres
+    #     username: postgres
+    #     password: password
+    #   sample_pg_2:
+    #     host: localhost
+    #     port: 5423
+    #     database: postgres
+    #     username: postgres
+    #     password: password
 
 
   DEST:
@@ -44,6 +44,7 @@ Lake:
       database: postgres
       username: postgres
       password: password
+      schema: public
       lake_alias: lake
 
     storage:

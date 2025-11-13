@@ -9,6 +9,7 @@ class PgCnn(BaseModel):
     username: SecretStr = SecretStr(os.getenv("PG_USERNAME",'PG_USERNAME'))
     password: SecretStr = SecretStr(os.getenv("PG_SECRET",'PG_SECRET'))
     database: str = os.getenv("PG_DATABASE",'PG_DATABASE')
+    schema: str = os.getenv("PG_SCHEMA",'public')
     lake_alias: str = "lake"
     @computed_field
     @property

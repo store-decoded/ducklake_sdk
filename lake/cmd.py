@@ -1,7 +1,5 @@
 import argparse
 import os
-from lake.connector import load_connector
-from lake.render import serve
 from lake.connector.core import DuckLakeManager
 from lake.util.logger import logger
 
@@ -31,7 +29,11 @@ def main():
         "serve",
         help="execute a custom command on lake",
     )
-    parser_serve.add_argument(
+    parser_test = subparsers.add_parser(
+        "test",
+        help="test some custom code-block",
+    )
+    parser_test.add_argument(
         "--config",
         "-c",
         type=str,
@@ -53,12 +55,18 @@ def main():
     )
     args = parser.parse_args()
     if args.command == 'attach':
-        cnn = load_connector("kafka",args.config)
+        cnn = load_lake("kafka",args.config)
         cnn.attach()
-    if args.command == 'serve':
+    elif args.command == 'serve':
+        from lake.connector import load_lake
+        from lake.render import serve
         serve()
-        
+    elif args.command == 'test':
+        lake = DuckLakeManager(args.config)
 
+        # get_data = f"select * from lake.awesome_table;" 
+        # result = lake.duckdb_connection.execute(get_data).fetch_df()
+        # logger.info(result)
 
 
 
