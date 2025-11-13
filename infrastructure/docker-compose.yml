@@ -1,13 +1,14 @@
 services:
   pg_database:
     image: postgres:latest
-    container_name: lake_catalog
+    container_name: catalog_pg
     restart: always
     ports:
       - ${PG_ADVERT_PORT:-5433}:5432
     environment:
-      POSTGRES_USER: ${PG_USER:-pgadmin}
+      POSTGRES_USER: ${PG_USER:-postgres}
       POSTGRES_PASSWORD: ${PG_PASSWORD:-password}
+      POSTGRES_DB: ${PG_DB:-postgres}
     volumes:
       - pg_data:/var/lib/postgresql/data/
     networks:
@@ -27,7 +28,7 @@ services:
       - lake_net
   minio:
     image: minio/minio:latest
-    container_name: minio
+    container_name: lake_minio
     ports:
       - ${MINIO_ADVERT_PORT:-9000}:9000
       - ${MINIOCONSOLE_ADVERT_PORT:-9001}:9001
@@ -36,15 +37,15 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-password}
     volumes:
       - minio_data:/data
-    networks:
-      - lake_net
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 5s
       retries: 5
-  
+    networks:
+      - lake_net
+
   kafka:
     image: bitnami/kafka:latest
     container_name: kafka
@@ -81,13 +82,6 @@ services:
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:${KAFKA_INTERNAL_PORT:-29092}
 
 volumes:
-  kafka_data:
-    name: kafka_data
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${KAFKA_VOLUME_DIR:-./kafka_data}
   pg_data:
     driver: local
     driver_opts:
@@ -106,8 +100,14 @@ volumes:
       type: none
       o: bind
       device: ${MINIO_VOLUME_DIR:-./minio_data}
+  kafka_data:
+    name: kafka_data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${KAFKA_VOLUME_DIR:-./kafka_data}
 networks:
   lake_net:
-    name: lake_net
-    driver: bridge
-
+    external: true
+ 
