@@ -107,56 +107,74 @@ SRC defines the upstream source you want to pull from to build the lake. You can
 you should be able to define all of them and attach to each one as demand by running ('use {lake_alias}') inside your custom deploy() definition runtime
 
 
-![hld](resources/asset/lake.png)
+![hld](resources/assets/lake.png)
+
+### you can simply choose any duckdb connector:
+* AWS S3 buckets and storage with S3-compatible API
+* Azure Blob Storage
+*	Blob files
+*	Cloudflare R2
+*	CSV
+*	Delta Lake
+*	Excel
+*	httpfs
+*	Iceberg
+*	JSON
+*	MySQL
+*	Parquet
+*	PostgreSQL
+*	SQLite
+*	Text files
 
 
 ## Example config (just a sketch)
 
 ```yml
+
 SRC:
-  stream:
-    host: 127.0.0.1 # kafka bootstrap host that you want to ingest
-    port: 9092 # kafka broker port
-    ingest_topics: # the topic names to ingest data from (multiple)
-      - test_topic 
-    ingest_table: kafka_src # the name of table where observed messages from topic will be written in
-    group_id: ducklake # consumer group name
-  storage:
-    host: 127.0.0.1 # data included s3fs host that you want to read from
-    port: 9000 # data included s3fs port
-    scope: bucket_name # the bucket you will have access to by defining s3://{scope}/my_parquet_files_2025-05-*.parquet
-    secure: false # http=false | https=true
-    region: us-east-1 # matters only if you choose style=vhs
-    style: path # you can choose either vhs(for aws) or path 
-    access_key: minio # s3fs access key
-    secret: password # s3fs secret key
-    lake_alias: my_src_s3 # the alias to use connection (using {lake_alias}; select * from ...;) 
-  postgres:
-    host: 127.0.0.1 # data included postgres that you want to read from
-    port: 5432 # data included postgres port
-    database: postgres # target database to invoke queries on
-    username: pgadmin # postgres username
-    password: password # postgres password
-    lake_alias: my_src_pg # the alias to use this connection (using {lake_alias}; select * from ...;) 
-DEST: # all fields similar to SRC
-  catalog:
-    host: 127.0.0.1
-    port: 5432
-    database: postgres
-    username: pgadmin
-    password: password
-    lake_alias: lake # the alias to use when you want to query on core datalake (using {lake_alias}; select * from ...;) 
-  storage:
-    host: 127.0.0.1
-    port: 9000
-    scope: destination
-    secure: false
-    region: us-east-1
-    style: path
-    access_key: minio
-    secret: password
-    lake_alias: dest_s3_secret # this alias is only used to ceate an s3 secret for ducklake initiation (the lake will then be able to resolve scope using read_parquet('s3://{scope}/my_file.parquet');) 
-```
+    storage:
+      remote_minio:
+        host: 127.0.0.1 # data included s3fs host that you want to read from
+        port: 9000 # data included s3fs port
+        scope: bucket_name # the bucket you will have access to by defining s3://{scope}/my_parquet_files_2025-05-*.parquet
+        secure: false # http=false | https=true
+        region: us-east-1 # matters only if you choose style=vhs
+        style: path # you can choose either vhs(for aws) or path 
+        access_key: minio # s3fs access key
+        secret: password # s3fs secret key
+      amazon_aws:
+        # same logic
+
+    postgres:
+      production_pg:
+        host: 127.0.0.1 # data included postgres that you want to read from
+        port: 5432 # data included postgres port
+        database: postgres # target database to invoke queries on
+        username: pgadmin # postgres username
+        password: password # postgres password
+      test_pg:
+        # same ...
+      dev_pg_:
+        # same ...
+ DEST:
+    catalog: # the metadata of your ducklake will be stored inside the shema pubic of the given database in here 
+      host: localhost 
+      port: 5433
+      database: postgres
+      username: postgres
+      password: password
+      lake_alias: lake
+
+    storage: # the actual versions of your data inside ducklake will be stored under the given bucket (if bucket name does not exist it will be created)
+      host: localhost
+      port: 9000
+      scope: destination
+      secure: false
+      region: us-east-1
+      style: path
+      access_key: minio
+      secret: password
+      lake_alias: lake_data
  
 $`\textcolor{green}{\text{Note}}`$ \
     You don’t have to fill all of SRC. Use the one(s) you need.
@@ -213,9 +231,16 @@ class Connector(DuckLakeManager):
         # connect to your storage src (no need to call use {alias} command since ducklake automatically detects from scope)
         read_from_src_storage = f"select count(request_id) as num_requests,remote_ip as address from read_parquet('s3://{self.SRC.storage.scope}/website_logs.parquet') \
             group by remote_ip;"
-        result = self.duckdb_connection.execute(read_from_src_storage)
-        print(result.df())
+        
 
+        # you do not need to declare the "use {database};" expressions each time to access your data, the source data will be accessible using the keyname of the connection inside your config.yml file. 
+        # so for the example with the config file in readme mentioned above:
+        global_query = """
+        SELECT * FROM production_pg.public.table_name AS this 
+        LEFT JOIN test_pg.public.other_table AS that on this.id = that.this_id 
+        LEFT JOIN read_parquet('s3://destination/some_data.parquet') s3 ON s3.in_parquet_id = that.that_id; 
+        """
+        result = self.duckdb_connection.execute(read_from_src_storage)
         # create any plot inside this code-block and return it
         df = result.df()
         df.plot(kind = 'bar', x = 'address', y = 'num_requests')
@@ -233,9 +258,21 @@ class Connector(DuckLakeManager):
 Members of your data analysis team can customize the deploy method to return a Matplotlib plot, which can be used to register their own dashboard on the Dashboards page. This codebase is designed to make the Python module you create under ./lake/pages/{the_name}.py available when executing the following command.
 
 ```bash
-lake serve --config resources/config.yml
+lake serve
 Aliases: -c for --config 
 ```
+
+this project provides a complete Apache Airflow stack orchestrated by docker-compose.yml. The structure and services defined within this file are designed to mirror the official Apache Airflow Docker setup, ensuring familiarity and ease of maintenance.
+
+The key difference and central feature of this project is the use of a custom Airflow image. 
+Instead of using the original image from a public registry, the base image for the Airflow services is built locally using the Dockerfile located at the root of this project.
+
+This approach allows for powerful and version-controlled customization of the Airflow environment, enabling you to:
+
+* Run the commands of [lake ...] inside your airflow dags (in case you want to use Bash Operators).
+* Install OS-level dependencies.
+* use DuckLakeManager inside your dag files and point it to your demanded config.yml file
+* Configure environment variables directly within the image.
 
 
 
