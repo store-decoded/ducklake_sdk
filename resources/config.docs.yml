@@ -1,5 +1,6 @@
+
 BrokerCnn:
-  host: 127.0.0.1
+  host: read.from.kafka.host
   port: 9092
   ingest_topics: 
     - sample_topic
@@ -7,47 +8,54 @@ BrokerCnn:
   group_id: ducklake_consumers
   batch_size: 10000
 
-
 Lake:
   SRC:
     storage:
-      sample_minio:
-        host: DataPalace
+      remote_minio:
+        host: read.from.s3fs.host
         port: 9000
-        scope: data-source
+        scope: big_parquets_bucket
         secure: false
         region: us-east-1
         style: path
         access_key: minio
         secret: password
-
-
+      local_minio:
+        host: read.from.local.host
+        port: 9000
+        scope: some_other_data
+        secure: false
+        region: us-east-1
+        style: path
+        access_key: minio
+        secret: password
+    
     postgres:
-      sample_pg_1:
-        host: sample_pg_1
+      local_postgres:
+        host: read.from.pg.host
         port: 5432
         database: postgres
         username: postgres
         password: password
-      sample_pg_2:
-        host: sample_pg_2
+        lake_alias: lake
+      local_postgres:
+        host: read.from.pg.host
         port: 5432
         database: postgres
         username: postgres
         password: password
-
-
+        lake_alias: lake
   DEST:
     catalog:
-      host: catalog_pg
+      host: 127.0.0.1
       port: 5432
       database: postgres
-      username: postgres
+      username: pgadmin
       password: password
       lake_alias: lake
 
     storage:
-      host: minio
+      host: 127.0.0.1
       port: 9000
       scope: destination
       secure: false
@@ -55,5 +63,3 @@ Lake:
       style: path
       access_key: minio
       secret: password
-      lake_alias: lake_data
-

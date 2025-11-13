@@ -12,8 +12,8 @@ Lake:
   SRC:
     storage:
       sample_minio:
-        host: DataPalace
-        port: 9000
+        host: localhost
+        port: 9003
         scope: data-source
         secure: false
         region: us-east-1
@@ -24,14 +24,14 @@ Lake:
 
     postgres:
       sample_pg_1:
-        host: sample_pg_1
-        port: 5432
+        host: localhost
+        port: 5422
         database: postgres
         username: postgres
         password: password
       sample_pg_2:
-        host: sample_pg_2
-        port: 5432
+        host: localhost
+        port: 5423
         database: postgres
         username: postgres
         password: password
@@ -39,15 +39,15 @@ Lake:
 
   DEST:
     catalog:
-      host: catalog_pg
-      port: 5432
+      host: localhost
+      port: 5433
       database: postgres
       username: postgres
       password: password
       lake_alias: lake
 
     storage:
-      host: minio
+      host: localhost
       port: 9000
       scope: destination
       secure: false
