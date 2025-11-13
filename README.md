@@ -188,8 +188,7 @@ $`\textcolor{green}{\text{Note}}`$ \
 next navigate to the root of project:
 ```bash
 uv pip install -e .
-
-
+```
 
 if you dont have uv installed follow the steps below:
 
