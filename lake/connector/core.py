@@ -22,11 +22,12 @@ class DuckLakeManager(Configs):
         self.duckdb_connection = duckdb.connect()
         try:
             self._attach()
-            result = self.duckdb_connection.execute("""
+            result = self.duckdb_connection.execute(f"""
                 SELECT tablename
                 FROM pg_catalog.pg_tables
-                WHERE schemaname = 'postgres';
+                WHERE schemaname = 'public';
                 """).fetchall()
+            print("Available DataSrc:",[x[0] for x in result if not x[0].startswith('ducklake')])
             if len(result) == 0:
                raise CatalogException
             logger.info(f"attached existing ducklake {self.Lake.DEST.catalog.lake_alias} with {len(result)} tables")
@@ -97,11 +98,11 @@ class DuckLakeManager(Configs):
     def _get_src_s3_secret(lake_alias:str,storage_cfg:StorageCnn):
         try:
             return (
-                f"create secret {lake_alias} (type s3, "
+                f"create secret {lake_alias}_secret (type s3, "
                 + f"key_id '{storage_cfg.access_key.get_secret_value()}', "
                 + f"secret '{storage_cfg.secret.get_secret_value()}', "
-                + f"endpoint '{storage_cfg.host}:{storage_cfg.port}', "
-                + f"scope 's3://{storage_cfg.scope}',"
+                + f"endpoint '{storage_cfg.get_address}', "
+                + f"scope 's3://{storage_cfg.scope}', "
                 + f"use_ssl {storage_cfg.secure}, "
                 + f"url_style '{storage_cfg.style}'"
                 ");"
@@ -117,7 +118,7 @@ class DuckLakeManager(Configs):
             logger.error(f'ducklake (DataPath) storage has not been registered ! {fail}')
         
         if self.Lake.SRC.storage:
-            logger.info(f"registering s3 sources {list(self.Lake.SRC.storage.keys())}")
+            
             for lake_alias,storage_cfg in self.Lake.SRC.storage.items():
                 logger.info(f"register minio instance {lake_alias} on scope {storage_cfg.scope}")
                 try:
@@ -133,6 +134,7 @@ class DuckLakeManager(Configs):
         logger.info(f"registering core 'DATA LAKE' as {self.Lake.DEST.catalog.lake_alias}")
         attach_lake_command = f"ATTACH 'ducklake:{self._get_dest_catalog_definition()}' AS {self.Lake.DEST.catalog.lake_alias} (DATA_PATH 's3://{self.Lake.DEST.storage.scope}');"
         try:
+            print(attach_lake_command)
             register_lake = self.duckdb_connection.execute(attach_lake_command).fetchall()
             logger.info(register_lake)
         except IOException:
@@ -239,7 +241,7 @@ class DuckLakeManager(Configs):
         """
         ).fetchall()
         
-        logger.info("\n🔍 Analyzing recent changes...")
+        logger.info("Analyzing recent changes...")
 
         # Find the deletion snapshot
         deletion_snapshot = None
@@ -255,10 +257,10 @@ class DuckLakeManager(Configs):
                 break
 
         if target_snapshot:
-            logger.warning(f"\n⚠️  Found deletion in snapshot {deletion_snapshot}")
+            logger.warning(f"Found deletion in snapshot {deletion_snapshot}")
             logger.info(f"   Previous good snapshot: {previous_snapshot}")
             if previous_snapshot:
-                logger.info("\n📊 Data that was deleted:")
+                logger.info("Data that was deleted:")
                 prev_data_state = self.duckdb_connection.execute(
                     f"""
                     SELECT * FROM {table_name} AT (VERSION => {previous_snapshot})

@@ -15,9 +15,9 @@ class Connector(DuckLakeManager):
 	_consumers: list[Consumer] = []
 	def __init__(self,config_path):
 		super(Connector,self).__init__(config_path)
-		self.duckdb_connection.execute(f"use {self.DEST.catalog.lake_alias};")
+		self.duckdb_connection.execute(f"use {self.Lake.DEST.catalog.lake_alias};")
 		"""Initialize the Kafka client."""
-		self.bootstrap_servers = self.SRC.stream.url
+		self.bootstrap_servers = self.BrokerCnn.url
 		self.base_config = {"bootstrap.servers": self.bootstrap_servers}
 		self.consumer_config = {**self.base_config,
 						   "auto.offset.reset": "earliest",
@@ -27,7 +27,7 @@ class Connector(DuckLakeManager):
 						   'heartbeat.interval.ms': 600000
 						   }
 		self._consumers: list[Consumer] = []
-		logger.warning(f"initializing kafka client {self.SRC.stream.url} topics={self.SRC.stream.ingest_topics} group={self.SRC.stream.group_id}")
+		logger.warning(f"initializing kafka client {self.BrokerCnn.url} topics={self.BrokerCnn.ingest_topics} group={self.BrokerCnn.group_id}")
 
 	@property
 	def consumers(self) -> list[Consumer]:
@@ -189,24 +189,24 @@ class Connector(DuckLakeManager):
 					pg_type = self.infer_type(value)
 					columns.append(f"{key} {pg_type}")
 				columns_sql = ', '.join(columns)
-				create_statement = f"CREATE TABLE IF NOT EXISTS {self.SRC.stream.ingest_table} ({columns_sql});"
+				create_statement = f"CREATE TABLE IF NOT EXISTS {self.BrokerCnn.ingest_table} ({columns_sql});"
 				table_generate_result = self.duckdb_connection.sql(create_statement)
-				print(self.duckdb_connection.table(self.SRC.stream.ingest_table).show())
+				print(self.duckdb_connection.table(self.BrokerCnn.ingest_table).show())
 				logger.info(f"{create_statement} Returned -> {table_generate_result}")
 				return
 	
 	def attach(self):
-		consumer = self.open_consumer(self.SRC.stream.group_id,self.SRC.stream.ingest_topics)
+		consumer = self.open_consumer(self.BrokerCnn.group_id,self.BrokerCnn.ingest_topics)
 		self.template_adapter(consumer)
 		try:
-			for messages_frame in self.consume_batch(consumer,batch_size=self.SRC.stream.batch_size):
-				logger.warning(f"inserting new frame ({messages_frame.shape}) into {self.SRC.stream.ingest_table}")
+			for messages_frame in self.consume_batch(consumer,batch_size=self.BrokerCnn.batch_size):
+				logger.warning(f"inserting new frame ({messages_frame.shape}) into {self.BrokerCnn.ingest_table}")
 				logger.info(messages_frame)
-				self.duckdb_connection.sql(f"INSERT INTO {self.SRC.stream.ingest_table} (SELECT * FROM messages_frame)")
+				self.duckdb_connection.sql(f"INSERT INTO {self.BrokerCnn.ingest_table} (SELECT * FROM messages_frame)")
 		finally:
 			self.close_consumer(consumer)
 	def single_message(self,batch_size:int):
-		consumer = self.open_consumer(self.SRC.stream.group_id,self.SRC.stream.ingest_topics)
+		consumer = self.open_consumer(self.BrokerCnn.group_id,self.BrokerCnn.ingest_topics)
 		self.template_adapter(consumer)
 		try:
 			for message in self.consume_messages(consumer):
@@ -214,7 +214,7 @@ class Connector(DuckLakeManager):
 				keys = ', '.join(data.keys())
 				placeholders = ', '.join(['?'] * len(data)) 
 				values = tuple(data.values())
-				insert_statement = f"INSERT INTO {self.SRC.stream.ingest_table} ({keys}) VALUES ({placeholders})"
+				insert_statement = f"INSERT INTO {self.BrokerCnn.ingest_table} ({keys}) VALUES ({placeholders})"
 				insert_result = self.duckdb_connection.execute(insert_statement, values)
 				logger.info(f"{insert_statement} Results-> {insert_result.fetchall()}")
 		finally:

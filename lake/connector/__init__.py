@@ -3,7 +3,7 @@ import sys
 from typing import Literal, cast,Union
 from . import *
 
-def load_connector(servicer:str,config_path:str):
+def load_lake(servicer:str,config_path:str):
     try:
         module = importlib.import_module(f".{servicer}", package=__name__)
         return module.Connector(config_path)
