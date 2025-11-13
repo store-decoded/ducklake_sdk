@@ -176,6 +176,9 @@ SRC:
       secret: password
       lake_alias: lake_data
  
+
+```
+
 $`\textcolor{green}{\text{Note}}`$ \
     You don’t have to fill all of SRC. Use the one(s) you need.
     Keep secrets out of git. Environment variables or a secrets manager are your friends.
@@ -185,7 +188,6 @@ $`\textcolor{green}{\text{Note}}`$ \
 next navigate to the root of project:
 ```bash
 uv pip install -e .
-```
 
 
 
