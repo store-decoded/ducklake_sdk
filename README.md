@@ -4,6 +4,15 @@ A super quick, no-nonsense guide to wiring up your lake.
 
 basic infrastructure for a datalake operating on top of (ducklake,duckdb,postgress,kafka,minio[s3])
 
+---
+
+### YouTube 🎦
+	
+
+[<img src="resources/assets/DuckLakeMarkDown.png" width="400" height="300">](https://www.youtube.com/watch?v=sYwt5SxIL4o)
+
+
+
 
 
 ## Getting Started
