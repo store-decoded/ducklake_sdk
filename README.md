@@ -209,7 +209,7 @@ Aliases: -c for --config
 ## Usage
 
 
-To learn how to utilize the `Connector` class, navigate to the example file located at `lake/connector/personal.py`. Below is a sample implementation:
+To learn how to utilize the `Connector` class, navigate to the example file located at `lake/pages/lake_data.py`. Below is a sample implementation:
 
 ```python
 class Connector(DuckLakeManager):
@@ -275,6 +275,15 @@ This approach allows for powerful and version-controlled customization of the Ai
 * use DuckLakeManager inside your dag files and point it to your demanded config.yml file
 * Configure environment variables directly within the image.
 
+This project is designed for a highly flexible and dynamic workflow, allowing you to update task configurations without restarting any Airflow services.
 
+The core of this functionality lies in how the custom DuckLakeManager class interacts with the config.yml file.
+
+How it Works:
+
+Volume Mounting: The local config.yml file is directly mounted into the filesystem of the running Airflow containers. This means any change saved to the file on your local machine is instantly reflected inside the containers.
+On-the-Fly Initialization: The DuckLakeManager (or a similar configuration-dependent class) is designed to be re-initialized within the task on every DAG run.
+Live Updates: When a task instance runs, it creates a new instance of the manager, which then reads the current state of the config.yml file.
+Key Advantage: This architecture enables hot-reloading of configurations. You can modify connections or change paths in config.yml, and the very next task run will automatically use your new changes without requiring a container restart or a service redeployment.
 
 Project status: This project is under active development. Please report bugs or issues this repo or hashempourian.a@gmail.com.
