@@ -5,15 +5,11 @@
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="./resources/assets/Logo.png">
     <source media="(prefers-color-scheme: dark)" srcset="./resources/assets/Logo.png">
-    <img alt="DuckLakeSDK logo" src="./resources/assets/Logo.png" height="200" width="200">
+    <img alt="DuckLakeSDK logo" src="./resources/assets/Logo.png" height="180" width="250">
   </picture>
 </div>
 <br>
-<img src="./resources/assets/DuckLakeLogo.svg" width="400" />
-
-
 A super quick, no-nonsense guide to wiring up your lake.
-
 basic infrastructure for a datalake operating on top of (ducklake,duckdb,postgress,kafka,minio[s3])
 
 ## TL;DR
