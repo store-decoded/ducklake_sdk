@@ -1,8 +1,17 @@
-# DuckLake (SDK) 🧰 
 
+<center> <h1>DuckLake (SDK) 🧰 </h1> </center>
+<center> <img src="./resources/assets/Logo.png" width="200" /> </center>
+<br>
 A super quick, no-nonsense guide to wiring up your lake.
 
 basic infrastructure for a datalake operating on top of (ducklake,duckdb,postgress,kafka,minio[s3])
+
+## TL;DR
+
+1) Open `./resources/config.yml`  
+2) Set your DEST (where the lake lives)  
+3) Add some connections under SRC (what you’re reading from) !   
+4) Install deps:
 
 ---
 
@@ -69,12 +78,6 @@ That’s it. The tooling reads this config and does the rest.
 
 ---
 
-## TL;DR
-
-1) Open `./resources/config.yml`  
-2) Set your DEST (where the lake lives)  
-3) Pick a SRC (what you’re reading from) / or leave it empty if you like!   
-4) Install deps:
 
 The config file (resources/config.yml) 
 
