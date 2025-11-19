@@ -57,7 +57,7 @@ class DuckLakeManager(Configs):
             return './resources/asset/tmp.db'
     def _get_dest_catalog_definition(self):
         try:
-            p = 1/0
+            
             return (
                 "postgres:"
                 + f"dbname={self.Lake.DEST.catalog.database} "
